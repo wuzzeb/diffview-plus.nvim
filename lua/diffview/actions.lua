@@ -111,6 +111,48 @@ local M = setmetatable({}, {
 
 M.compat = {}
 
+---Applicability metadata attached to actions whose effect depends on the
+---current view. The help panel consults this (via `M._is_applicable`) to
+---suppress entries that would be no-ops in the current view. Weak keys let
+---closures returned by action factories be collected once no keymap references
+---them anymore.
+---@alias diffview.ActionTag "merge_only"
+---@type table<function, diffview.ActionTag>
+local action_meta = setmetatable({}, { __mode = "k" })
+
+---Attach an applicability tag to `fn`. Returns `fn` so the call can be used
+---inline at the point an action factory returns its closure:
+---   return tag(function() ... end, "merge_only")
+---@generic F : function
+---@param fn F
+---@param tag_name diffview.ActionTag
+---@return F
+local function tag(fn, tag_name)
+  action_meta[fn] = tag_name
+  return fn
+end
+
+---Whether `fn` is applicable in `view`'s current state. Untagged functions
+---are considered always-applicable (default: shown). Used by the help panel
+---to filter context-only mappings.
+---@param fn unknown # Typically the `rhs` of a keymap entry.
+---@param view StandardView?
+---@return boolean
+function M._is_applicable(fn, view)
+  if type(fn) ~= "function" then
+    return true
+  end
+  local t = action_meta[fn]
+  if t == nil then
+    return true
+  end
+  if t == "merge_only" then
+    -- `merge_ctx` is a `DiffView` field; on other views the access is nil-safe.
+    return view ~= nil and (view --[[@as DiffView]]).merge_ctx ~= nil
+  end
+  return true
+end
+
 ---Return the view's main window and its file's bufnr if both are valid,
 ---otherwise nil. Use this at the top of any action that reads or modifies the
 ---currently-displayed file buffer.
@@ -397,12 +439,14 @@ end
 function M.next_conflict()
   return M.jumpto_conflict(1, true)
 end
+tag(M.next_conflict, "merge_only")
 
 ---Jump to the previous merge conflict marker.
 ---@return diffview.ConflictCount?
 function M.prev_conflict()
   return M.jumpto_conflict(-1, true)
 end
+tag(M.prev_conflict, "merge_only")
 
 ---Move the cursor to an inline-diff hunk in the current `diff1_inline` window,
 ---as picked by `picker(bufnr, cursor_row)`.
@@ -639,33 +683,36 @@ end
 ---@param target DiffviewConflictTarget
 ---@return AsyncFunc
 function M.conflict_choose_all(target)
-  return async.void(function()
-    local view = lib.get_current_view() --[[@as DiffView ]]
+  return tag(
+    async.void(function()
+      local view = lib.get_current_view() --[[@as DiffView ]]
 
-    if view and view:instanceof(DiffView.__get()) then
-      ---@cast view DiffView
+      if view and view:instanceof(DiffView.__get()) then
+        ---@cast view DiffView
 
-      if view.panel:is_focused() then
-        local item = view:infer_cur_file(false) ---@cast item -DirData
-        if not item then
-          return
+        if view.panel:is_focused() then
+          local item = view:infer_cur_file(false) ---@cast item -DirData
+          if not item then
+            return
+          end
+
+          if not item.active then
+            -- Open the entry
+            await(view:set_file(item))
+          end
         end
 
-        if not item.active then
-          -- Open the entry
-          await(view:set_file(item))
-        end
+        resolve_all_conflicts(view, target)
       end
-
-      resolve_all_conflicts(view, target)
-    end
-  end)
+    end),
+    "merge_only"
+  )
 end
 
 ---@param target DiffviewConflictTarget
 ---@return fun()
 function M.conflict_choose(target)
-  return function()
+  return tag(function()
     local view = lib.get_current_view()
 
     if view and view:instanceof(StandardView.__get()) then
@@ -702,7 +749,7 @@ function M.conflict_choose(target)
         end
       end
     end
-  end
+  end, "merge_only")
 end
 
 ---@param target DiffviewDiffgetTarget
