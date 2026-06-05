@@ -83,9 +83,24 @@ describe("diffview.config default keymaps", function()
     assert.falsy(find_keymap(keymaps.file_panel, "g!"))
   end)
 
-  it("view section still contains conflict keymaps", function()
+  it("conflict keymaps live on the merge-tool layouts, not the view section", function()
     local keymaps = config.defaults.keymaps
-    assert.truthy(find_keymap(keymaps.view, "<leader>co"))
-    assert.truthy(find_keymap(keymaps.view, "dx"))
+    -- They should be active in every layout that appears in the default
+    -- `merge_tool` cycle (`diff3`, `diff4`, and `diff1_plain`) and absent
+    -- from the general `view` section.
+    for _, lhs in ipairs({
+      "<leader>co",
+      "<leader>ct",
+      "<leader>cb",
+      "<leader>ca",
+      "dx",
+      "[x",
+      "]x",
+    }) do
+      assert.truthy(find_keymap(keymaps.diff1, lhs), "diff1 missing " .. lhs)
+      assert.truthy(find_keymap(keymaps.diff3, lhs), "diff3 missing " .. lhs)
+      assert.truthy(find_keymap(keymaps.diff4, lhs), "diff4 missing " .. lhs)
+      assert.falsy(find_keymap(keymaps.view, lhs), "view should not contain " .. lhs)
+    end
   end)
 end)

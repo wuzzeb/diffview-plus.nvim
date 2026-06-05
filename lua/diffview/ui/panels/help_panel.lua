@@ -1,4 +1,5 @@
 local Panel = require("diffview.ui.panel").Panel
+local actions = require("diffview.actions")
 local get_user_config = require("diffview.config").get_config
 local oop = require("diffview.oop")
 local utils = require("diffview.utils")
@@ -175,7 +176,7 @@ function HelpPanel:update_components()
       for _, mapping in ipairs(maps) do
         local desc = mapping[5]
 
-        if desc ~= "diffview_ignore" then
+        if desc ~= "diffview_ignore" and actions._is_applicable(mapping[3], self.parent) then
           width = math.max(width, 14 + 4 + #mapping[5] + 2)
           table.insert(items, {
             name = "item",

@@ -233,3 +233,85 @@ describe("diffview.actions goto_file command routing", function()
     eq(0, #disposed_views)
   end)
 end)
+
+describe("diffview.actions._is_applicable", function()
+  local RevType = require("diffview.vcs.rev").RevType
+
+  local make_view = function(opts)
+    opts = opts or {}
+    local v = { merge_ctx = opts.merge_ctx and {} or nil }
+    if opts.left then
+      v.left = { type = opts.left }
+    end
+    if opts.right then
+      v.right = { type = opts.right }
+    end
+    return v
+  end
+
+  it("returns true for untagged functions", function()
+    assert.is_true(actions._is_applicable(function() end, make_view()))
+  end)
+
+  it("returns true for non-function rhs (vim command strings)", function()
+    assert.is_true(actions._is_applicable("<Cmd>echo 'hi'<CR>", make_view()))
+  end)
+
+  it("hides `merge_only` actions when the view has no merge context", function()
+    assert.is_false(actions._is_applicable(actions.next_conflict, make_view()))
+    assert.is_false(actions._is_applicable(actions.prev_conflict, make_view()))
+  end)
+
+  it("shows `merge_only` actions when the view has a merge context", function()
+    assert.is_true(actions._is_applicable(actions.next_conflict, make_view({ merge_ctx = true })))
+    assert.is_true(actions._is_applicable(actions.prev_conflict, make_view({ merge_ctx = true })))
+  end)
+
+  it("propagates `merge_only` tag through `conflict_choose` factory", function()
+    local fn = actions.conflict_choose("ours")
+    assert.is_false(actions._is_applicable(fn, make_view()))
+    assert.is_true(actions._is_applicable(fn, make_view({ merge_ctx = true })))
+  end)
+
+  it("propagates `merge_only` tag through `conflict_choose_all` factory", function()
+    local fn = actions.conflict_choose_all("ours")
+    assert.is_false(actions._is_applicable(fn, make_view()))
+    assert.is_true(actions._is_applicable(fn, make_view({ merge_ctx = true })))
+  end)
+
+  it("returns false when view is nil and the action is `merge_only`", function()
+    assert.is_false(actions._is_applicable(actions.next_conflict, nil))
+  end)
+
+  it("shows `working_tree_only` actions when comparing STAGE against LOCAL", function()
+    local view = make_view({ left = RevType.STAGE, right = RevType.LOCAL })
+    assert.is_true(actions._is_applicable(actions.toggle_stage_entry, view))
+    assert.is_true(actions._is_applicable(actions.stage_all, view))
+    assert.is_true(actions._is_applicable(actions.unstage_all, view))
+  end)
+
+  it("hides `working_tree_only` actions when comparing two commits", function()
+    local view = make_view({ left = RevType.COMMIT, right = RevType.COMMIT })
+    assert.is_false(actions._is_applicable(actions.toggle_stage_entry, view))
+    assert.is_false(actions._is_applicable(actions.stage_all, view))
+    assert.is_false(actions._is_applicable(actions.unstage_all, view))
+  end)
+
+  it("hides `working_tree_only` actions when right side is not LOCAL", function()
+    local view = make_view({ left = RevType.STAGE, right = RevType.COMMIT })
+    assert.is_false(actions._is_applicable(actions.toggle_stage_entry, view))
+  end)
+
+  it("hides `working_tree_only` actions when left side is not STAGE", function()
+    local view = make_view({ left = RevType.COMMIT, right = RevType.LOCAL })
+    assert.is_false(actions._is_applicable(actions.toggle_stage_entry, view))
+  end)
+
+  it("hides `working_tree_only` actions when view lacks left/right (non-DiffView)", function()
+    assert.is_false(actions._is_applicable(actions.toggle_stage_entry, make_view()))
+  end)
+
+  it("returns false when view is nil and the action is `working_tree_only`", function()
+    assert.is_false(actions._is_applicable(actions.toggle_stage_entry, nil))
+  end)
+end)

@@ -102,6 +102,26 @@ local common_panel_keymaps = {
   { "n", "zM",             actions.close_all_folds,     { desc = "Collapse all folds" } },
 }
 
+-- Conflict-resolution keymaps spliced into the `keymaps.diff1`/`diff3`/`diff4`
+-- groups below, covering every layout in the default `merge_tool` cycle.
+-- `keymaps.diff1` applies to all `Diff1` layouts except `diff1_inline`, which
+-- has its own keymap group. These operate on conflict markers in the local
+-- buffer, so they only make sense when a merge is in progress.
+local conflict_keymaps = {
+  { "n", "[x",          actions.prev_conflict,                  { desc = "Jump to the previous conflict marker" } },
+  { "n", "]x",          actions.next_conflict,                  { desc = "Jump to the next conflict marker" } },
+  { "n", "<leader>co",  actions.conflict_choose("ours"),        { desc = "Choose the OURS version of a conflict" } },
+  { "n", "<leader>ct",  actions.conflict_choose("theirs"),      { desc = "Choose the THEIRS version of a conflict" } },
+  { "n", "<leader>cb",  actions.conflict_choose("base"),        { desc = "Choose the BASE version of a conflict" } },
+  { "n", "<leader>ca",  actions.conflict_choose("all"),         { desc = "Choose all the versions of a conflict" } },
+  { "n", "dx",          actions.conflict_choose("none"),        { desc = "Delete the conflict region" } },
+  { "n", "<leader>cO",  actions.conflict_choose_all("ours"),    { desc = "Choose the OURS version of a conflict for the whole file" } },
+  { "n", "<leader>cT",  actions.conflict_choose_all("theirs"),  { desc = "Choose the THEIRS version of a conflict for the whole file" } },
+  { "n", "<leader>cB",  actions.conflict_choose_all("base"),    { desc = "Choose the BASE version of a conflict for the whole file" } },
+  { "n", "<leader>cA",  actions.conflict_choose_all("all"),     { desc = "Choose all the versions of a conflict for the whole file" } },
+  { "n", "dX",          actions.conflict_choose_all("none"),    { desc = "Delete the conflict region for the whole file" } },
+}
+
 ---@class DiffviewConfig
 ---@field diff_binaries boolean
 ---@field enhanced_diff_hl boolean
@@ -648,23 +668,14 @@ M.defaults = {
       -- tabpage is a Diffview.
       { "n", "<C-w>T",      actions.open_in_new_tab,                { desc = "Open diffview in a new tab" } },
       { "n", "g<C-x>",      actions.cycle_layout,                   { desc = "Cycle through available layouts" } },
-      { "n", "[x",          actions.prev_conflict,                  { desc = "In the merge-tool: jump to the previous conflict" } },
-      { "n", "]x",          actions.next_conflict,                  { desc = "In the merge-tool: jump to the next conflict" } },
-      { "n", "<leader>co",  actions.conflict_choose("ours"),        { desc = "Choose the OURS version of a conflict" } },
-      { "n", "<leader>ct",  actions.conflict_choose("theirs"),      { desc = "Choose the THEIRS version of a conflict" } },
-      { "n", "<leader>cb",  actions.conflict_choose("base"),        { desc = "Choose the BASE version of a conflict" } },
-      { "n", "<leader>ca",  actions.conflict_choose("all"),         { desc = "Choose all the versions of a conflict" } },
-      { "n", "dx",          actions.conflict_choose("none"),        { desc = "Delete the conflict region" } },
-      { "n", "<leader>cO",  actions.conflict_choose_all("ours"),    { desc = "Choose the OURS version of a conflict for the whole file" } },
-      { "n", "<leader>cT",  actions.conflict_choose_all("theirs"),  { desc = "Choose the THEIRS version of a conflict for the whole file" } },
-      { "n", "<leader>cB",  actions.conflict_choose_all("base"),    { desc = "Choose the BASE version of a conflict for the whole file" } },
-      { "n", "<leader>cA",  actions.conflict_choose_all("all"),     { desc = "Choose all the versions of a conflict for the whole file" } },
-      { "n", "dX",          actions.conflict_choose_all("none"),    { desc = "Delete the conflict region for the whole file" } },
     }, actions.compat.fold_cmds),
-    diff1 = {
-      -- Mappings in single window diff layouts
+    diff1 = utils.vec_join({
+      -- Mappings in single-window diff layouts (all `Diff1` subclasses except
+      -- `diff1_inline`, which has its own keymap group). These layouts
+      -- participate in the default `merge_tool` cycle, so they inherit the
+      -- conflict-resolution mappings too.
       { "n", "g?", actions.help({ "view", "diff1" }), { desc = "Open the help panel" } },
-    },
+    }, conflict_keymaps),
     diff1_inline = {
       -- Mappings in the `diff1_inline` unified diff layout. Native `]c`/`[c`
       -- and `do` don't work here because the window has `diff=false`, so we
@@ -678,19 +689,19 @@ M.defaults = {
       -- Mappings in 2-way diff layouts
       { "n", "g?", actions.help({ "view", "diff2" }), { desc = "Open the help panel" } },
     },
-    diff3 = {
+    diff3 = utils.vec_join({
       -- Mappings in 3-way diff layouts
       { { "n", "x" }, "2do",  actions.diffget("ours"),            { desc = "Obtain the diff hunk from the OURS version of the file" } },
       { { "n", "x" }, "3do",  actions.diffget("theirs"),          { desc = "Obtain the diff hunk from the THEIRS version of the file" } },
       { "n",          "g?",   actions.help({ "view", "diff3" }),  { desc = "Open the help panel" } },
-    },
-    diff4 = {
+    }, conflict_keymaps),
+    diff4 = utils.vec_join({
       -- Mappings in 4-way diff layouts
       { { "n", "x" }, "1do",  actions.diffget("base"),            { desc = "Obtain the diff hunk from the BASE version of the file" } },
       { { "n", "x" }, "2do",  actions.diffget("ours"),            { desc = "Obtain the diff hunk from the OURS version of the file" } },
       { { "n", "x" }, "3do",  actions.diffget("theirs"),          { desc = "Obtain the diff hunk from the THEIRS version of the file" } },
       { "n",          "g?",   actions.help({ "view", "diff4" }),  { desc = "Open the help panel" } },
-    },
+    }, conflict_keymaps),
     file_panel = utils.vec_join(common_panel_keymaps, common_nav_keymaps, {
       { { "n", "x" }, "w",    actions.toggle_select_entry,            { desc = "Toggle file selection for multi-file operations" } },
       { "n", "C",              actions.clear_select_entries,           { desc = "Clear all file selections" } },
