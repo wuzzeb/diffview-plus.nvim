@@ -44,6 +44,13 @@ function M.init()
       M.emit("tab_enter")
     end,
   })
+  au("FocusGained", {
+    group = M.augroup,
+    pattern = "*",
+    callback = function(_)
+      M.emit("refresh_files")
+    end,
+  })
   au("TabLeave", {
     group = M.augroup,
     pattern = "*",
